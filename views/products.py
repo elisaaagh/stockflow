@@ -11,6 +11,8 @@ from database.products import (
     change_product_status
 )
 
+from services.products_api import get_products_from_api
+
 
 # ==========================================
 # PAGE HEADER
@@ -23,12 +25,17 @@ st.caption("Manage your product catalog.")
 # LOAD PRODUCTS
 # ==========================================
 
+
 try:
-    products = get_all_products()
+    products = get_products_from_api()
 
 except Exception:
-    st.error("Unable to load products from database.")
+    st.error(
+        "Unable to load products from StockFlow API. "
+        "Verify that FastAPI is running on port 8000."
+    )
     st.stop()
+
 
 
 # ==========================================

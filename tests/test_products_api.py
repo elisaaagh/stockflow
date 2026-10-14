@@ -87,3 +87,65 @@ def test_invalid_stock():
     )
 
     assert response.status_code == 422
+
+def test_put_product(monkeypatch):
+    calls = []
+
+    monkeypatch.setattr(
+        products_router,
+        "get_product_by_id",
+        lambda product_id: SAMPLE_PRODUCT
+    )
+
+    def fake_update_product(**kwargs):
+        calls.append(kwargs)
+        return True
+
+    monkeypatch.setattr(
+        products_router,
+        "update_product",
+        fake_update_product
+    )
+
+    response = client.put(
+        "/api/products/1",
+        json={
+            "name": "Updated Product",
+            "description": "Updated description",
+            "unit": "Pieza",
+            "min_stock": 20
+        }
+    )
+
+    assert response.status_code == 200
+    assert calls[0]["name"] == "Updated Product"
+    assert calls[0]["min_stock"] == 20
+
+
+def test_patch_product(monkeypatch):
+    calls = []
+
+    monkeypatch.setattr(
+        products_router,
+        "get_product_by_id",
+        lambda product_id: SAMPLE_PRODUCT
+    )
+
+    def fake_update_product(**kwargs):
+        calls.append(kwargs)
+        return True
+
+    monkeypatch.setattr(
+        products_router,
+        "update_product",
+        fake_update_product
+    )
+
+    response = client.patch(
+        "/api/products/1",
+        json={"min_stock": 30}
+    )
+
+    assert response.status_code == 200
+    assert calls[0]["name"] == SAMPLE_PRODUCT["name"]
+    assert calls[0]["min_stock"] == 30
