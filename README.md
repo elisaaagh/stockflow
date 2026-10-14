@@ -1,5 +1,7 @@
 # 📦 StockFlow
 
+[![StockFlow CI](https://github.com/elisaaagh/stockflow/actions/workflows/tests.yml/badge.svg)](https://github.com/elisaaagh/stockflow/actions/workflows/tests.yml)
+
 ### Inventory Management & Analytics System
 
 A multi-page inventory management application built with **Python, PostgreSQL, and Streamlit**.
@@ -199,6 +201,23 @@ python -m pytest tests/ -v
 
 **Warning:** The integration tests clear data in the dedicated test database. Never execute them against a database containing important information.
 
+### Continuous Integration
+
+StockFlow uses GitHub Actions to run automated
+PostgreSQL integration tests on pushes and pull
+requests to the main branch.
+
+The CI workflow:
+1. Starts a temporary PostgreSQL service.
+2. Initializes the database schema.
+3. Installs Python dependencies.
+4. Executes the Pytest integration suite.
+
+The workflow runs in an isolated environment
+without requiring access to the local database.
+
+[View CI workflow](https://github.com/elisaaagh/stockflow/actions/workflows/tests.yml)
+
 ## Technical Highlights
 
 - Parameterized SQL queries
@@ -229,7 +248,7 @@ python -m pytest tests/ -v
 - [ ] User authentication
 - [ ] Warehouse transfers
 - [ ] Extended automated test coverage
-- [ ] Continuous integration
+- [x] Continuous integration
 - [ ] Cloud deployment
 
 ## About This Project
