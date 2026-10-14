@@ -4,12 +4,20 @@ import streamlit as st
 
 from decimal import Decimal
 
-from database.products import get_all_products
-from database.inventory import get_warehouses
-from database.movements import (
-    register_movement,
-    get_movements,
-    StockMovementError
+from services.products_api import (
+    get_products_from_api,
+    ProductAPIError
+)
+
+from services.inventory_api import (
+    get_warehouses_from_api,
+    InventoryAPIError
+)
+
+from services.movements_api import (
+    register_movement_from_api,
+    get_movements_from_api,
+    MovementAPIError
 )
 
 
@@ -20,23 +28,26 @@ from database.movements import (
 st.title("🔄 Stock Movements")
 st.caption("Register stock entries and exits.")
 
+
 # ==========================================
-# LOAD PRODUCTS AND WAREHOUSES
+# LOAD PRODUCTS AND WAREHOUSES VIA HTTP
 # ==========================================
 
 try:
     products = [
-        p for p in get_all_products()
+        p for p in get_products_from_api()
         if p["is_active"]
     ]
 
     warehouses = [
-        w for w in get_warehouses()
+        w for w in get_warehouses_from_api()
         if w["is_active"]
     ]
 
-except Exception:
-    st.error("Unable to load products or warehouses.")
+except (ProductAPIError, InventoryAPIError) as error:
+    st.error(
+        f"Unable to load products or warehouses: {error}"
+    )
     st.stop()
 
 
@@ -106,7 +117,7 @@ else:
             "Quantity",
             min_value=0.01,
             value=1.0,
-            step=1.0,
+            step=0.01,
             format="%.2f"
         )
 
@@ -124,13 +135,15 @@ else:
     if submitted:
 
         try:
-            movement_id = register_movement(
+            result = register_movement_from_api(
                 product_id=selected_product,
                 warehouse_id=selected_warehouse,
                 movement_type=movement_type,
                 quantity=Decimal(str(quantity)),
                 notes=notes.strip()
             )
+
+            movement_id = result["movement_id"]
 
             st.session_state["movement_message"] = (
                 f"Movement #{movement_id} "
@@ -139,14 +152,8 @@ else:
 
             st.rerun()
 
-        except StockMovementError as error:
+        except MovementAPIError as error:
             st.warning(str(error))
-
-        except Exception:
-            st.error(
-                "Unable to register movement. "
-                "Please verify your database connection."
-            )
 
 
 # ==========================================
@@ -157,7 +164,7 @@ st.divider()
 st.subheader("Movement History")
 
 try:
-    movements = get_movements()
+    movements = get_movements_from_api()
 
     if movements:
 
@@ -176,5 +183,7 @@ try:
     else:
         st.info("No stock movements registered yet.")
 
-except Exception:
-    st.error("Unable to load movement history.")
+except MovementAPIError as error:
+    st.error(
+        f"Unable to load movement history: {error}"
+    )
