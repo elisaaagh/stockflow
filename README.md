@@ -6,6 +6,23 @@ StockFlow is a Python-based inventory management web application designed to hel
 
 The application uses PostgreSQL for relational data storage, Streamlit for its web interface, and Python for business logic and reporting.
 
+## Application Preview
+
+### Dashboard
+![StockFlow Dashboard](docs/screenshots/dashboard.png)
+
+### Product Management
+![Product Management](docs/screenshots/products.png)
+
+### Inventory Management
+![Inventory Management](docs/screenshots/inventory.png)
+
+### Stock Movements
+![Stock Movements](docs/screenshots/movements.png)
+
+### Reports & Analytics
+![Reports and Analytics](docs/screenshots/reports.png)
+
 ## Features
 
 - **Product Management:** Create, view, update, activate, and deactivate products.
