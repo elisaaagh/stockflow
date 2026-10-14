@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from api.routers.products import router as products_router
 from api.routers.inventory import router as inventory_router
 from api.routers.movements import router as movements_router
+from api.routers.dashboard import router as dashboard_router
 
 # ==========================================
 # APPLICATION CONFIGURATION
@@ -48,3 +49,4 @@ def health_check():
 app.include_router(products_router)
 app.include_router(inventory_router)
 app.include_router(movements_router)
+app.include_router(dashboard_router)

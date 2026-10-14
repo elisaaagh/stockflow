@@ -2,13 +2,21 @@
 import pandas as pd
 import streamlit as st
 
-from database.dashboard import (
-    get_dashboard_metrics,
-    get_daily_activity
+from services.dashboard_api import (
+    get_dashboard_metrics_from_api,
+    get_daily_activity_from_api,
+    DashboardAPIError
 )
 
-from database.movements import get_movements
-from database.inventory import get_low_stock
+from services.movements_api import (
+    get_movements_from_api,
+    MovementAPIError
+)
+
+from services.inventory_api import (
+    get_low_stock_from_api,
+    InventoryAPIError
+)
 
 
 # ==========================================
@@ -22,19 +30,22 @@ st.caption(
 
 
 # ==========================================
-# LOAD DATABASE INFORMATION
+# LOAD DATA FROM FASTAPI
 # ==========================================
 
 try:
-    metrics = get_dashboard_metrics()
-    activity = get_daily_activity()
-    movements = get_movements()
-    low_stock = get_low_stock()
+    metrics = get_dashboard_metrics_from_api()
+    activity = get_daily_activity_from_api()
+    movements = get_movements_from_api()
+    low_stock = get_low_stock_from_api()
 
-except Exception:
+except (
+    DashboardAPIError,
+    MovementAPIError,
+    InventoryAPIError
+) as error:
     st.error(
-        "Unable to load dashboard information. "
-        "Please verify the database connection."
+        f"Unable to load dashboard information: {error}"
     )
     st.stop()
 
@@ -97,7 +108,7 @@ with st.container(border=True):
             "movement_date"
         )
 
-        # Seven calendar days, including days with no movements.
+        # Seven calendar days, including zero-activity days.
         days = pd.date_range(
             end=pd.Timestamp.today().normalize(),
             periods=7,
@@ -116,7 +127,6 @@ with st.container(border=True):
             }
         )
 
-        # Use date labels instead of a datetime axis.
         df_activity.index = df_activity.index.strftime(
             "%b %d"
         )
@@ -205,8 +215,15 @@ with col_right:
 
         if low_stock:
 
-            df_alerts = pd.DataFrame(
-                low_stock
+            df_alerts = pd.DataFrame(low_stock)
+
+            # JSON responses may contain decimal strings.
+            df_alerts["quantity"] = pd.to_numeric(
+                df_alerts["quantity"]
+            )
+
+            df_alerts["min_stock"] = pd.to_numeric(
+                df_alerts["min_stock"]
             )
 
             df_alerts["missing_quantity"] = (
@@ -257,5 +274,5 @@ with col_right:
 st.divider()
 
 st.caption(
-    "StockFlow | Inventory Management System | v0.1.0"
+    "StockFlow | Inventory Management System | v2.0.0-dev"
 )
