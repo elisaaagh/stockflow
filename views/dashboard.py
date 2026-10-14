@@ -8,26 +8,34 @@ from database.dashboard import (
 )
 
 from database.movements import get_movements
+from database.inventory import get_low_stock
 
 
 # ==========================================
-# HEADER
+# PAGE HEADER
 # ==========================================
 
 st.title("📊 StockFlow Dashboard")
-st.caption("Inventory Management & Business Overview")
+st.caption(
+    "Inventory Management & Business Overview"
+)
+
 
 # ==========================================
-# LOAD DATA
+# LOAD DATABASE INFORMATION
 # ==========================================
 
 try:
     metrics = get_dashboard_metrics()
     activity = get_daily_activity()
     movements = get_movements()
+    low_stock = get_low_stock()
 
 except Exception:
-    st.error("Unable to load dashboard data.")
+    st.error(
+        "Unable to load dashboard information. "
+        "Please verify the database connection."
+    )
     st.stop()
 
 
@@ -35,90 +43,211 @@ except Exception:
 # KEY PERFORMANCE INDICATORS
 # ==========================================
 
+st.subheader("Overview")
+
 col1, col2, col3, col4 = st.columns(4)
 
-col1.metric(
-    "Active Products",
-    metrics["active_products"]
-)
+with col1:
+    with st.container(border=True):
+        st.metric(
+            "Active Products",
+            metrics["active_products"]
+        )
 
-col2.metric(
-    "Warehouses",
-    metrics["active_warehouses"]
-)
+with col2:
+    with st.container(border=True):
+        st.metric(
+            "Warehouses",
+            metrics["active_warehouses"]
+        )
 
-col3.metric(
-    "Low Stock Alerts",
-    metrics["low_stock_alerts"]
-)
+with col3:
+    with st.container(border=True):
+        st.metric(
+            "Low Stock Alerts",
+            metrics["low_stock_alerts"]
+        )
 
-col4.metric(
-    "Total Movements",
-    metrics["total_movements"]
-)
-
-st.divider()
+with col4:
+    with st.container(border=True):
+        st.metric(
+            "Total Movements",
+            metrics["total_movements"]
+        )
 
 
 # ==========================================
-# MOVEMENT ACTIVITY
+# DAILY MOVEMENT ACTIVITY
 # ==========================================
 
 st.subheader("📈 Movement Activity")
-st.caption("Number of entries and exits by day")
+st.caption("Number of stock entries and exits per day")
 
-if activity:
+with st.container(border=True):
 
-    df_activity = pd.DataFrame(activity)
+    if activity:
 
-    df_activity["movement_date"] = pd.to_datetime(
-        df_activity["movement_date"]
-    )
+        df_activity = pd.DataFrame(activity)
 
-    df_activity = df_activity.set_index(
-        "movement_date"
-    )
+        df_activity["movement_date"] = pd.to_datetime(
+            df_activity["movement_date"]
+        )
 
-    # Include days with no movements.
-    days = pd.date_range(
-        end=pd.Timestamp.today().normalize(),
-        periods=7
-    )
+        df_activity = df_activity.set_index(
+            "movement_date"
+        )
 
-    df_activity = df_activity.reindex(
-        days,
-        fill_value=0
-    )
+        # Seven calendar days, including days with no movements.
+        days = pd.date_range(
+            end=pd.Timestamp.today().normalize(),
+            periods=7,
+            freq="D"
+        )
 
-    st.bar_chart(
-        df_activity[["entries", "exits"]]
-    )
+        df_activity = df_activity.reindex(
+            days,
+            fill_value=0
+        )
 
-else:
-    st.info("No movements in the last 7 days.")
+        df_activity = df_activity.rename(
+            columns={
+                "entries": "Entries",
+                "exits": "Exits"
+            }
+        )
+
+        # Use date labels instead of a datetime axis.
+        df_activity.index = df_activity.index.strftime(
+            "%b %d"
+        )
+
+        st.bar_chart(
+            df_activity[["Entries", "Exits"]],
+            x_label="Date",
+            y_label="Movements",
+            width="stretch",
+            height=300
+        )
+
+    else:
+        st.info(
+            "No inventory movements in the last 7 days."
+        )
+
+
+# ==========================================
+# RECENT MOVEMENTS & STOCK ALERTS
+# ==========================================
+
+col_left, col_right = st.columns(
+    2,
+    gap="medium"
+)
 
 
 # ==========================================
 # RECENT MOVEMENTS
 # ==========================================
 
-st.divider()
-st.subheader("🕘 Recent Movements")
+with col_left:
 
-if movements:
+    with st.container(border=True):
 
-    df_movements = pd.DataFrame(
-        movements[:10]
-    )
+        st.subheader("🕘 Recent Movements")
 
-    st.dataframe(
-        df_movements,
-        hide_index=True,
-        width="stretch"
-    )
+        if movements:
 
-else:
-    st.info("No movements registered yet.")
+            df_movements = pd.DataFrame(
+                movements[:5]
+            )
+
+            df_movements = df_movements[[
+                "created_at",
+                "sku",
+                "movement_type",
+                "quantity",
+                "unit"
+            ]].copy()
+
+            df_movements["created_at"] = (
+                pd.to_datetime(
+                    df_movements["created_at"]
+                ).dt.strftime("%Y-%m-%d %H:%M")
+            )
+
+            df_movements.columns = [
+                "Date",
+                "SKU",
+                "Type",
+                "Quantity",
+                "Unit"
+            ]
+
+            st.dataframe(
+                df_movements,
+                hide_index=True,
+                width="stretch"
+            )
+
+        else:
+            st.info("No movements registered yet.")
+
+
+# ==========================================
+# LOW STOCK ALERTS
+# ==========================================
+
+with col_right:
+
+    with st.container(border=True):
+
+        st.subheader("⚠️ Low Stock Alerts")
+
+        if low_stock:
+
+            df_alerts = pd.DataFrame(
+                low_stock
+            )
+
+            df_alerts["missing_quantity"] = (
+                df_alerts["min_stock"]
+                - df_alerts["quantity"]
+            )
+
+            df_alerts = df_alerts.sort_values(
+                by="missing_quantity",
+                ascending=False
+            )
+
+            df_alerts = df_alerts[[
+                "sku",
+                "warehouse",
+                "quantity",
+                "missing_quantity"
+            ]].head(5)
+
+            df_alerts.columns = [
+                "SKU",
+                "Warehouse",
+                "Stock",
+                "Missing"
+            ]
+
+            st.dataframe(
+                df_alerts,
+                hide_index=True,
+                width="stretch"
+            )
+
+            st.caption(
+                f"{len(low_stock)} low stock alerts detected."
+            )
+
+        else:
+            st.success(
+                "All active products meet "
+                "their minimum stock levels."
+            )
 
 
 # ==========================================
@@ -126,4 +255,7 @@ else:
 # ==========================================
 
 st.divider()
-st.caption("StockFlow | Inventory Management System")
+
+st.caption(
+    "StockFlow | Inventory Management System | v0.1.0"
+)
