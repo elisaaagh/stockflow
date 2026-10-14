@@ -2,10 +2,11 @@
 import pandas as pd
 import streamlit as st
 
-from database.inventory import (
-    get_warehouses,
-    get_inventory,
-    get_low_stock
+from services.inventory_api import (
+    get_warehouses_from_api,
+    get_inventory_from_api,
+    get_low_stock_from_api,
+    InventoryAPIError
 )
 
 
@@ -18,16 +19,16 @@ st.caption("Monitor stock availability across warehouses.")
 
 
 # ==========================================
-# LOAD DATA
+# LOAD DATA FROM FASTAPI
 # ==========================================
 
 try:
-    inventory = get_inventory()
-    warehouses = get_warehouses()
-    low_stock = get_low_stock()
+    inventory = get_inventory_from_api()
+    warehouses = get_warehouses_from_api()
+    low_stock = get_low_stock_from_api()
 
-except Exception:
-    st.error("Unable to load inventory data.")
+except InventoryAPIError as error:
+    st.error(str(error))
     st.stop()
 
 
@@ -57,11 +58,19 @@ st.divider()
 
 st.subheader("Warehouse Inventory")
 
-warehouse_names = [w["name"] for w in warehouses]
+warehouse_options = {
+    w["warehouse_id"]: w["name"]
+    for w in warehouses
+}
 
-selected_warehouse = st.selectbox(
+selected_warehouse_id = st.selectbox(
     "Filter by Warehouse",
-    ["All Warehouses"] + warehouse_names
+    options=[None] + list(warehouse_options.keys()),
+    format_func=lambda warehouse_id: (
+        "All Warehouses"
+        if warehouse_id is None
+        else warehouse_options[warehouse_id]
+    )
 )
 
 search = st.text_input(
@@ -76,10 +85,10 @@ search = st.text_input(
 
 filtered_inventory = inventory.copy()
 
-if selected_warehouse != "All Warehouses":
+if selected_warehouse_id is not None:
     filtered_inventory = [
         item for item in filtered_inventory
-        if item["warehouse"] == selected_warehouse
+        if item["warehouse_id"] == selected_warehouse_id
     ]
 
 if search.strip():
@@ -135,6 +144,14 @@ st.subheader("⚠️ Low Stock Alerts")
 if low_stock:
 
     alerts_df = pd.DataFrame(low_stock)
+
+    alerts_df["quantity"] = pd.to_numeric(
+        alerts_df["quantity"]
+    )
+
+    alerts_df["min_stock"] = pd.to_numeric(
+        alerts_df["min_stock"]
+    )
 
     alerts_df["missing_quantity"] = (
         alerts_df["min_stock"] - alerts_df["quantity"]
