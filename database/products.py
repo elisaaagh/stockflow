@@ -101,3 +101,30 @@ def change_product_status(product_id, is_active):
             result = cursor.fetchone()
 
     return result is not None
+
+# ==========================================
+# READ - GET PRODUCT BY ID
+# ==========================================
+
+def get_product_by_id(product_id):
+    """Find a product by its primary key."""
+
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    product_id,
+                    sku,
+                    name,
+                    description,
+                    unit,
+                    min_stock,
+                    is_active
+                FROM products
+                WHERE product_id = %s;
+                """,
+                (product_id,)
+            )
+
+            return cursor.fetchone()

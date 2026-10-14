@@ -1,6 +1,9 @@
 
 from fastapi import FastAPI
 
+from api.routers.products import router as products_router
+
+
 # ==========================================
 # APPLICATION CONFIGURATION
 # ==========================================
@@ -26,7 +29,7 @@ def root():
 
 
 # ==========================================
-# HEALTH CHECK ENDPOINT
+# HEALTH CHECK
 # ==========================================
 
 @app.get("/health", tags=["Health"])
@@ -35,3 +38,10 @@ def health_check():
         "status": "ok",
         "service": "stockflow-api"
     }
+
+
+# ==========================================
+# REGISTER ROUTERS
+# ==========================================
+
+app.include_router(products_router)
