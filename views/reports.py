@@ -4,9 +4,20 @@ from datetime import date, timedelta
 import pandas as pd
 import streamlit as st
 
-from database.products import get_all_products
-from database.inventory import get_warehouses
-from database.reports import get_movement_report
+from services.products_api import (
+    get_products_from_api,
+    ProductAPIError
+)
+
+from services.inventory_api import (
+    get_warehouses_from_api,
+    InventoryAPIError
+)
+
+from services.reports_api import (
+    get_movement_report_from_api,
+    ReportsAPIError
+)
 
 
 # ==========================================
@@ -16,16 +27,17 @@ from database.reports import get_movement_report
 st.title("📈 Reports & Analytics")
 st.caption("Analyze inventory movements and export reports.")
 
+
 # ==========================================
-# LOAD FILTER OPTIONS
+# LOAD FILTER OPTIONS FROM FASTAPI
 # ==========================================
 
 try:
-    products = get_all_products()
-    warehouses = get_warehouses()
+    products = get_products_from_api()
+    warehouses = get_warehouses_from_api()
 
-except Exception:
-    st.error("Unable to load report filters.")
+except (ProductAPIError, InventoryAPIError) as error:
+    st.error(f"Unable to load report filters: {error}")
     st.stop()
 
 
@@ -108,11 +120,11 @@ if start_date > end_date:
 
 
 # ==========================================
-# LOAD REPORT
+# LOAD REPORT VIA HTTP
 # ==========================================
 
 try:
-    movements = get_movement_report(
+    movements = get_movement_report_from_api(
         start_date=start_date,
         end_date=end_date,
         warehouse_id=warehouse_id,
@@ -120,8 +132,8 @@ try:
         movement_type=movement_type
     )
 
-except Exception:
-    st.error("Unable to generate movement report.")
+except ReportsAPIError as error:
+    st.error(f"Unable to generate movement report: {error}")
     st.stop()
 
 
@@ -160,6 +172,15 @@ if movements:
 
     df = pd.DataFrame(movements)
 
+    # Convert JSON values to appropriate types.
+    df["created_at"] = pd.to_datetime(
+        df["created_at"]
+    )
+
+    df["quantity"] = pd.to_numeric(
+        df["quantity"]
+    )
+
     st.dataframe(
         df,
         hide_index=True,
@@ -174,9 +195,9 @@ if movements:
 
     chart_df = df.copy()
 
-    chart_df["movement_date"] = pd.to_datetime(
-        chart_df["created_at"]
-    ).dt.date
+    chart_df["movement_date"] = (
+        chart_df["created_at"].dt.date
+    )
 
     chart_df = (
         chart_df.groupby(
