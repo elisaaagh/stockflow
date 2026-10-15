@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 
 from api.main import app
 import api.routers.reports as reports_router
-
+from tests.auth_helpers import authenticated_as
 
 client = TestClient(app)
 
@@ -36,20 +36,22 @@ def test_get_movement_report(monkeypatch):
         fake_report
     )
 
-    response = client.get(
-        "/api/reports/movements",
-        params={
-            "start_date": "2026-10-01",
-            "end_date": "2026-10-15"
-        }
-    )
+    with authenticated_as("viewer"):
+        response = client.get(
+            "/api/reports/movements",
+            params={
+                "start_date": "2026-10-01",
+                "end_date": "2026-10-15"
+            }
+        )
 
     assert response.status_code == 200
     assert len(response.json()) == 1
     assert response.json()[0]["sku"] == "TEST001"
 
 
-def test_report_filters(monkeypatch):
+def test_report_filters(monkeypatch, login_as):
+    login_as("viewer")
     def fake_report(**kwargs):
         assert kwargs["warehouse_id"] == 2
         assert kwargs["product_id"] == 1
@@ -77,7 +79,8 @@ def test_report_filters(monkeypatch):
     assert response.json() == []
 
 
-def test_invalid_date_range():
+def test_invalid_date_range(login_as):
+    login_as("viewer")
     response = client.get(
         "/api/reports/movements",
         params={
@@ -89,7 +92,8 @@ def test_invalid_date_range():
     assert response.status_code == 422
 
 
-def test_invalid_movement_type():
+def test_invalid_movement_type(login_as):
+    login_as("viewer")
     response = client.get(
         "/api/reports/movements",
         params={
@@ -102,7 +106,8 @@ def test_invalid_movement_type():
     assert response.status_code == 422
 
 
-def test_invalid_warehouse_id():
+def test_invalid_warehouse_id(login_as):
+    login_as("viewer")
     response = client.get(
         "/api/reports/movements",
         params={

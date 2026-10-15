@@ -6,6 +6,11 @@ from database.inventory import (
     get_inventory,
     get_low_stock
 )
+from fastapi import Depends
+
+from api.dependencies.auth import (
+    require_viewer
+)
 
 
 router = APIRouter(tags=["Inventory"])
@@ -15,7 +20,10 @@ router = APIRouter(tags=["Inventory"])
 # GET WAREHOUSES
 # ==========================================
 
-@router.get("/api/warehouses")
+@router.get(
+        "/api/warehouses",
+        dependencies=[Depends(require_viewer)]
+    )
 def list_warehouses():
     """Return all registered warehouses."""
 
@@ -26,7 +34,10 @@ def list_warehouses():
 # GET INVENTORY
 # ==========================================
 
-@router.get("/api/inventory")
+@router.get(
+        "/api/inventory",
+        dependencies=[Depends(require_viewer)]
+    )
 def list_inventory(
     warehouse_id: int | None = Query(
         default=None,
@@ -52,7 +63,10 @@ def list_inventory(
 # GET LOW STOCK
 # ==========================================
 
-@router.get("/api/inventory/low-stock")
+@router.get(
+        "/api/inventory/low-stock",
+        dependencies=[Depends(require_viewer)]
+    )
 def list_low_stock():
     """Return active products below minimum stock."""
 

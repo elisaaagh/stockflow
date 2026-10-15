@@ -2,16 +2,14 @@
 import streamlit as st
 
 from decimal import Decimal
-from psycopg.errors import UniqueViolation
 
-from database.products import (
-    get_all_products,
-    create_product,
-    update_product,
-    change_product_status
+from services.products_api import (
+    get_products_from_api,
+    create_product_from_api,
+    update_product_from_api,
+    change_product_status_from_api,
+    ProductAPIError
 )
-
-from services.products_api import get_products_from_api
 
 
 # ==========================================
@@ -19,50 +17,57 @@ from services.products_api import get_products_from_api
 # ==========================================
 
 st.title("📦 Product Management")
-st.caption("Manage your product catalog.")
+st.caption("Manage products through StockFlow REST API.")
+
 
 # ==========================================
-# LOAD PRODUCTS
+# LOAD PRODUCTS FROM FASTAPI
 # ==========================================
-
 
 try:
     products = get_products_from_api()
 
-except Exception:
-    st.error(
-        "Unable to load products from StockFlow API. "
-        "Verify that FastAPI is running on port 8000."
-    )
+except ProductAPIError as error:
+    st.error(str(error))
     st.stop()
 
 
-
 # ==========================================
-# FEEDBACK MESSAGES
+# FEEDBACK
 # ==========================================
 
 if "product_message" in st.session_state:
-    st.success(st.session_state.pop("product_message"))
+    st.success(
+        st.session_state.pop("product_message")
+    )
 
 
 # ==========================================
-# PRODUCT METRICS
+# METRICS
 # ==========================================
 
-total_products = len(products)
+total = len(products)
 
-active_products = sum(
-    1 for p in products if p["is_active"]
+active = sum(
+    1 for product in products
+    if product["is_active"]
 )
 
-inactive_products = total_products - active_products
+inactive = total - active
 
 col1, col2, col3 = st.columns(3)
 
-col1.metric("Total Products", total_products)
-col2.metric("Active Products", active_products)
-col3.metric("Inactive Products", inactive_products)
+with col1:
+    with st.container(border=True):
+        st.metric("Total Products", total)
+
+with col2:
+    with st.container(border=True):
+        st.metric("Active Products", active)
+
+with col3:
+    with st.container(border=True):
+        st.metric("Inactive Products", inactive)
 
 st.divider()
 
@@ -86,7 +91,7 @@ st.divider()
 # MANAGEMENT TABS
 # ==========================================
 
-tab1, tab2, tab3 = st.tabs([
+tab_create, tab_edit, tab_status = st.tabs([
     "➕ Register Product",
     "✏️ Edit Product",
     "🔄 Product Status"
@@ -96,16 +101,19 @@ UNITS = ["Pieza", "Bulto", "M3", "KG", "TN"]
 
 
 # ==========================================
-# TAB 1 - REGISTER PRODUCT
+# CREATE PRODUCT
 # ==========================================
 
-with tab1:
+with tab_create:
 
     st.subheader("Register New Product")
 
-    with st.form("register_product_form"):
+    with st.form("create_product_form"):
 
-        sku = st.text_input("SKU", max_chars=30)
+        sku = st.text_input(
+            "SKU",
+            max_chars=30
+        )
 
         name = st.text_input(
             "Product Name",
@@ -119,7 +127,8 @@ with tab1:
         min_stock = st.number_input(
             "Minimum Stock",
             min_value=0.0,
-            value=0.0
+            value=0.0,
+            format="%.2f"
         )
 
         submitted = st.form_submit_button(
@@ -129,48 +138,42 @@ with tab1:
 
     if submitted:
 
-        sku = sku.strip().upper()
-        name = name.strip()
-
-        if not sku or not name:
+        if not sku.strip() or not name.strip():
             st.warning("SKU and name are required.")
 
         else:
             try:
-                product_id = create_product(
-                    sku=sku,
-                    name=name,
+                created = create_product_from_api(
+                    sku=sku.strip().upper(),
+                    name=name.strip(),
                     description=description.strip(),
                     unit=unit,
                     min_stock=Decimal(str(min_stock))
                 )
 
                 st.session_state["product_message"] = (
-                    f"Product created! ID: {product_id}"
+                    f"Product {created['sku']} created successfully!"
                 )
 
                 st.rerun()
 
-            except UniqueViolation:
-                st.error("This SKU already exists.")
-
-            except Exception:
-                st.error("Unable to save product.")
+            except ProductAPIError as error:
+                st.error(str(error))
 
 
 # ==========================================
-# TAB 2 - EDIT PRODUCT
+# EDIT PRODUCT
 # ==========================================
 
-with tab2:
+with tab_edit:
 
     st.subheader("Edit Existing Product")
 
     if products:
 
         product_options = {
-            p["product_id"]: p
-            for p in products
+            product["product_id"]: product
+            for product in products
         }
 
         selected_id = st.selectbox(
@@ -185,10 +188,12 @@ with tab2:
 
         selected = product_options[selected_id]
 
-        with st.form(
-            "edit_product_form",
-            enter_to_submit=False
-        ):
+        available_units = UNITS.copy()
+
+        if selected["unit"] not in available_units:
+            available_units.append(selected["unit"])
+
+        with st.form("edit_product_form"):
 
             new_name = st.text_input(
                 "Product Name",
@@ -201,21 +206,19 @@ with tab2:
                 value=selected["description"] or ""
             )
 
-            available_units = list(UNITS)
-
-            if selected["unit"] not in available_units:
-                available_units.append(selected["unit"])
-
             new_unit = st.selectbox(
                 "Unit",
                 available_units,
-                index=available_units.index(selected["unit"])
+                index=available_units.index(
+                    selected["unit"]
+                )
             )
 
             new_min_stock = st.number_input(
                 "Minimum Stock",
                 min_value=0.0,
-                value=float(selected["min_stock"])
+                value=float(selected["min_stock"]),
+                format="%.2f"
             )
 
             update_submitted = st.form_submit_button(
@@ -230,7 +233,7 @@ with tab2:
 
             else:
                 try:
-                    updated = update_product(
+                    updated = update_product_from_api(
                         product_id=selected_id,
                         name=new_name.strip(),
                         description=new_description.strip(),
@@ -238,34 +241,32 @@ with tab2:
                         min_stock=Decimal(str(new_min_stock))
                     )
 
-                    if updated:
-                        st.session_state["product_message"] = (
-                            "Product updated successfully!"
-                        )
-                        st.rerun()
-                    else:
-                        st.warning("Product not found.")
+                    st.session_state["product_message"] = (
+                        f"Product {updated['sku']} updated successfully!"
+                    )
 
-                except Exception:
-                    st.error("Unable to update product.")
+                    st.rerun()
+
+                except ProductAPIError as error:
+                    st.error(str(error))
 
     else:
         st.info("No products available.")
 
 
 # ==========================================
-# TAB 3 - PRODUCT STATUS
+# PRODUCT STATUS
 # ==========================================
 
-with tab3:
+with tab_status:
 
     st.subheader("Activate / Deactivate Product")
 
     if products:
 
         status_options = {
-            p["product_id"]: p
-            for p in products
+            product["product_id"]: product
+            for product in products
         }
 
         status_id = st.selectbox(
@@ -278,23 +279,24 @@ with tab3:
             key="status_product"
         )
 
-        status_product = status_options[status_id]
-        current_status = status_product["is_active"]
+        selected_product = status_options[status_id]
+
+        current_status = selected_product["is_active"]
 
         if current_status:
             st.success("Current Status: ACTIVE")
         else:
             st.warning("Current Status: INACTIVE")
 
-        with st.form("product_status_form"):
+        with st.form("status_form"):
 
             new_status = st.radio(
                 "Product Status",
                 options=[True, False],
+                index=0 if current_status else 1,
                 format_func=lambda value: (
                     "Active" if value else "Inactive"
-                ),
-                index=0 if current_status else 1
+                )
             )
 
             status_submitted = st.form_submit_button(
@@ -309,21 +311,20 @@ with tab3:
 
             else:
                 try:
-                    updated = change_product_status(
-                        status_id,
-                        new_status
+                    updated = change_product_status_from_api(
+                        product_id=status_id,
+                        is_active=new_status
                     )
 
-                    if updated:
-                        st.session_state["product_message"] = (
-                            "Product status updated!"
-                        )
-                        st.rerun()
-                    else:
-                        st.error("Product not found.")
+                    st.session_state["product_message"] = (
+                        f"Product {updated['sku']} "
+                        "status updated successfully!"
+                    )
 
-                except Exception:
-                    st.error("Unable to change product status.")
+                    st.rerun()
+
+                except ProductAPIError as error:
+                    st.error(str(error))
 
     else:
         st.info("No products available.")

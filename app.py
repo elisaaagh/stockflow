@@ -97,6 +97,7 @@ def show_login():
 
 token = st.session_state.get("access_token")
 
+
 if token:
     try:
         current_user = get_authenticated_user(token)

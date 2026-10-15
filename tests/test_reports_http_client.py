@@ -1,57 +1,73 @@
 
 from datetime import date
 
-import httpx
 import pytest
 
 from services import reports_api
+from services.api_client import APIClientError
 
+
+# ==========================================
+# REPORT WITH FILTERS
+# ==========================================
 
 def test_get_report_with_filters(monkeypatch):
-    def mock_response(request):
-        assert request.method == "GET"
-        assert request.url.path == "/api/reports/movements"
+    calls = []
 
-        params = request.url.params
+    def fake_request(method, endpoint, **kwargs):
+        calls.append({
+            "method": method,
+            "endpoint": endpoint,
+            **kwargs
+        })
 
-        assert params["start_date"] == "2026-10-01"
-        assert params["end_date"] == "2026-10-15"
-        assert params["warehouse_id"] == "2"
-        assert params["product_id"] == "1"
-        assert params["movement_type"] == "OUT"
-
-        return httpx.Response(
-            200,
-            json=[{
-                "movement_id": 10,
-                "movement_type": "OUT",
-                "quantity": "5.00"
-            }]
-        )
-
-    transport = httpx.MockTransport(mock_response)
-    original_client = httpx.Client
+        return [
+            {
+                "movement_id": 1,
+                "product_id": 2,
+                "warehouse_id": 3,
+                "movement_type": "IN",
+                "quantity": "10.00"
+            }
+        ]
 
     monkeypatch.setattr(
-        reports_api.httpx,
-        "Client",
-        lambda **kwargs: original_client(
-            transport=transport,
-            **kwargs
-        )
+        reports_api,
+        "get_access_token",
+        lambda: "test-token"
+    )
+
+    monkeypatch.setattr(
+        reports_api,
+        "api_request",
+        fake_request
     )
 
     result = reports_api.get_movement_report_from_api(
         start_date=date(2026, 10, 1),
         end_date=date(2026, 10, 15),
-        warehouse_id=2,
-        product_id=1,
-        movement_type="OUT"
+        warehouse_id=3,
+        product_id=2,
+        movement_type="IN"
     )
 
     assert len(result) == 1
-    assert result[0]["movement_type"] == "OUT"
+    assert calls[0]["method"] == "GET"
+    assert calls[0]["endpoint"] == "/api/reports/movements"
+    assert calls[0]["token"] == "test-token"
 
+    assert calls[0]["params"] == {
+        "start_date": "2026-10-01",
+        "end_date": "2026-10-15",
+        "warehouse_id": 3,
+        "product_id": 2,
+        "movement_type": "IN"
+    }
+
+
+# ==========================================
+# INVALID DATE RANGE
+# ==========================================
 
 def test_report_invalid_date_range():
     with pytest.raises(ValueError):
@@ -61,30 +77,35 @@ def test_report_invalid_date_range():
         )
 
 
-def test_report_http_error(monkeypatch):
-    transport = httpx.MockTransport(
-        lambda request: httpx.Response(
-            422,
-            json={"detail": "Invalid date range"}
-        )
-    )
+# ==========================================
+# HTTP ERROR
+# ==========================================
 
-    original_client = httpx.Client
+def test_report_http_error(monkeypatch):
+
+    def fake_request(method, endpoint, **kwargs):
+        raise APIClientError(
+            "Cannot connect to StockFlow API.",
+            status_code=503
+        )
 
     monkeypatch.setattr(
-        reports_api.httpx,
-        "Client",
-        lambda **kwargs: original_client(
-            transport=transport,
-            **kwargs
-        )
+        reports_api,
+        "get_access_token",
+        lambda: "test-token"
     )
 
-    with pytest.raises(
-        reports_api.ReportsAPIError,
-        match="HTTP 422"
-    ):
+    monkeypatch.setattr(
+        reports_api,
+        "api_request",
+        fake_request
+    )
+
+    with pytest.raises(APIClientError) as error:
         reports_api.get_movement_report_from_api(
             start_date=date(2026, 10, 1),
             end_date=date(2026, 10, 15)
         )
+
+    assert error.value.status_code == 503
+    assert "Cannot connect" in str(error.value)

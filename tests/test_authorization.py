@@ -12,31 +12,31 @@ from api.dependencies.auth import (
 )
 
 
-test_app = FastAPI()
+authorization_app = FastAPI()
 
 
-@test_app.get("/admin")
+@authorization_app.get("/admin")
 def admin_area(
     user: dict = Depends(require_admin)
 ):
     return {"username": user["username"]}
 
 
-@test_app.post("/movements")
+@authorization_app.post("/movements")
 def operator_area(
     user: dict = Depends(require_operator)
 ):
     return {"username": user["username"]}
 
 
-@test_app.get("/inventory")
+@authorization_app.get("/inventory")
 def viewer_area(
     user: dict = Depends(require_viewer)
 ):
     return {"username": user["username"]}
 
 
-client = TestClient(test_app)
+client = TestClient(authorization_app)
 
 
 def fake_user(role):
@@ -57,7 +57,7 @@ def fake_user(role):
     ]
 )
 def test_admin_permissions(role, expected):
-    test_app.dependency_overrides[get_current_user] = (
+    authorization_app.dependency_overrides[get_current_user] = (
         lambda: fake_user(role)
     )
 
@@ -65,7 +65,7 @@ def test_admin_permissions(role, expected):
         response = client.get("/admin")
         assert response.status_code == expected
     finally:
-        test_app.dependency_overrides.clear()
+        authorization_app.dependency_overrides.clear()
 
 
 @pytest.mark.parametrize(
@@ -77,7 +77,7 @@ def test_admin_permissions(role, expected):
     ]
 )
 def test_operator_permissions(role, expected):
-    test_app.dependency_overrides[get_current_user] = (
+    authorization_app.dependency_overrides[get_current_user] = (
         lambda: fake_user(role)
     )
 
@@ -85,7 +85,7 @@ def test_operator_permissions(role, expected):
         response = client.post("/movements")
         assert response.status_code == expected
     finally:
-        test_app.dependency_overrides.clear()
+        authorization_app.dependency_overrides.clear()
 
 
 @pytest.mark.parametrize(
@@ -97,7 +97,7 @@ def test_operator_permissions(role, expected):
     ]
 )
 def test_viewer_permissions(role, expected):
-    test_app.dependency_overrides[get_current_user] = (
+    authorization_app.dependency_overrides[get_current_user] = (
         lambda: fake_user(role)
     )
 
@@ -105,7 +105,7 @@ def test_viewer_permissions(role, expected):
         response = client.get("/inventory")
         assert response.status_code == expected
     finally:
-        test_app.dependency_overrides.clear()
+        authorization_app.dependency_overrides.clear()
 
 
 def test_missing_token():

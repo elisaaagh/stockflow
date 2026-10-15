@@ -7,7 +7,11 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from database.reports import get_movement_report
+from fastapi import Depends
 
+from api.dependencies.auth import (
+    require_viewer
+)
 
 router = APIRouter(
     prefix="/api/reports",
@@ -37,7 +41,8 @@ class MovementReportResponse(BaseModel):
 
 @router.get(
     "/movements",
-    response_model=list[MovementReportResponse]
+    response_model=list[MovementReportResponse],
+    dependencies=[Depends(require_viewer)]
 )
 def movement_report(
     start_date: date,

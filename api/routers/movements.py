@@ -12,7 +12,12 @@ from database.movements import (
     get_movements,
     StockMovementError
 )
+from fastapi import Depends
 
+from api.dependencies.auth import (
+    require_operator,
+    require_viewer
+)
 
 router = APIRouter(
     prefix="/api/movements",
@@ -26,7 +31,8 @@ router = APIRouter(
 
 @router.get(
     "",
-    response_model=list[MovementResponse]
+    response_model=list[MovementResponse],
+    dependencies=[Depends(require_viewer)]
 )
 def list_movements():
     return get_movements()
@@ -39,7 +45,8 @@ def list_movements():
 @router.post(
     "",
     response_model=MovementCreated,
-    status_code=status.HTTP_201_CREATED
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_operator)]
 )
 def create_movement(payload: MovementCreate):
 

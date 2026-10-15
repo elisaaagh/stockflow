@@ -3,7 +3,7 @@ from fastapi.testclient import TestClient
 
 from api.main import app
 import api.routers.inventory as inventory_router
-
+from tests.auth_helpers import authenticated_as
 
 client = TestClient(app)
 
@@ -34,7 +34,8 @@ SAMPLE_INVENTORY = [
 ]
 
 
-def test_get_warehouses(monkeypatch):
+def test_get_warehouses(monkeypatch, login_as):
+    login_as("viewer")
     monkeypatch.setattr(
         inventory_router,
         "get_warehouses",
@@ -54,20 +55,23 @@ def test_get_warehouses(monkeypatch):
     assert len(response.json()) == 1
 
 
-def test_get_inventory(monkeypatch):
+def test_get_inventory(monkeypatch, login_as):
+    login_as("viewer")
     monkeypatch.setattr(
         inventory_router,
         "get_inventory",
         lambda: SAMPLE_INVENTORY
     )
 
-    response = client.get("/api/inventory")
+    with authenticated_as("viewer"):
+        response = client.get("/api/inventory")
 
     assert response.status_code == 200
     assert len(response.json()) == 2
 
 
-def test_filter_inventory_by_warehouse(monkeypatch):
+def test_filter_inventory_by_warehouse(monkeypatch, login_as):
+    login_as("viewer")
     monkeypatch.setattr(
         inventory_router,
         "get_inventory",
@@ -84,7 +88,8 @@ def test_filter_inventory_by_warehouse(monkeypatch):
     assert response.json()[0]["warehouse_id"] == 1
 
 
-def test_invalid_warehouse_id():
+def test_invalid_warehouse_id(login_as):
+    login_as("viewer")
     response = client.get(
         "/api/inventory",
         params={"warehouse_id": -1}
@@ -93,7 +98,8 @@ def test_invalid_warehouse_id():
     assert response.status_code == 422
 
 
-def test_get_low_stock(monkeypatch):
+def test_get_low_stock(monkeypatch, login_as):
+    login_as("viewer")
     monkeypatch.setattr(
         inventory_router,
         "get_low_stock",

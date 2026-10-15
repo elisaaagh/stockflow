@@ -7,16 +7,23 @@ from api.schemas import (
     ProductCreate,
     ProductResponse,
     ProductUpdate,
-    ProductPatch
+    ProductPatch,
+    ProductStatusUpdate
 )
 
 from database.products import (
     get_all_products,
     get_product_by_id,
     create_product,
-    update_product
+    update_product,
+    change_product_status
 )
+from fastapi import Depends
 
+from api.dependencies.auth import (
+    require_admin,
+    require_viewer
+)
 
 router = APIRouter(
     prefix="/api/products",
@@ -30,7 +37,8 @@ router = APIRouter(
 
 @router.get(
     "",
-    response_model=list[ProductResponse]
+    response_model=list[ProductResponse],
+    dependencies=[Depends(require_viewer)]
 )
 def list_products():
     return get_all_products()
@@ -42,7 +50,8 @@ def list_products():
 
 @router.get(
     "/{product_id}",
-    response_model=ProductResponse
+    response_model=ProductResponse,
+    dependencies=[Depends(require_viewer)]
 )
 def read_product(product_id: int):
 
@@ -64,6 +73,7 @@ def read_product(product_id: int):
 @router.post(
     "",
     response_model=ProductResponse,
+    dependencies=[Depends(require_admin)],
     status_code=status.HTTP_201_CREATED
 )
 def add_product(product: ProductCreate):
@@ -106,7 +116,8 @@ def add_product(product: ProductCreate):
 
 @router.put(
     "/{product_id}",
-    response_model=ProductResponse
+    response_model=ProductResponse,
+    dependencies=[Depends(require_admin)]
 )
 def replace_product(
     product_id: int,
@@ -142,7 +153,8 @@ def replace_product(
 
 @router.patch(
     "/{product_id}",
-    response_model=ProductResponse
+    response_model=ProductResponse,
+    dependencies=[Depends(require_admin)]
 )
 def patch_product(
     product_id: int,
@@ -192,6 +204,32 @@ def patch_product(
         description=description,
         unit=unit,
         min_stock=min_stock
+    )
+
+    if not updated:
+        raise HTTPException(
+            status_code=404,
+            detail="Product not found."
+        )
+
+    return get_product_by_id(product_id)
+
+# ==========================================
+# PATCH - ACTIVATE / DEACTIVATE PRODUCT
+# ==========================================
+
+@router.patch(
+    "/{product_id}/status",
+    response_model=ProductResponse,
+    dependencies=[Depends(require_admin)]
+)
+def update_product_status(
+    product_id: int,
+    payload: ProductStatusUpdate
+):
+    updated = change_product_status(
+        product_id=product_id,
+        is_active=payload.is_active
     )
 
     if not updated:

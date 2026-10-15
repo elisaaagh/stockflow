@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 
 from api.main import app
 import api.routers.dashboard as dashboard_router
-
+from tests.auth_helpers import authenticated_as
 
 client = TestClient(app)
 
@@ -23,14 +23,16 @@ def test_dashboard_metrics(monkeypatch):
         }
     )
 
-    response = client.get("/api/dashboard/metrics")
+    with authenticated_as("viewer"):
+        response = client.get("/api/dashboard/metrics")
 
     assert response.status_code == 200
     assert response.json()["active_products"] == 15
     assert response.json()["low_stock_alerts"] == 5
 
 
-def test_dashboard_activity(monkeypatch):
+def test_dashboard_activity(monkeypatch, login_as):
+    login_as("viewer")
 
     monkeypatch.setattr(
         dashboard_router,

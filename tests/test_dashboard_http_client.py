@@ -1,98 +1,118 @@
 
-import httpx
 import pytest
 
 from services import dashboard_api
+from services.api_client import APIClientError
 
+
+# ==========================================
+# DASHBOARD METRICS
+# ==========================================
 
 def test_dashboard_metrics_http(monkeypatch):
-    def handler(request):
-        assert request.method == "GET"
-        assert request.url.path == "/api/dashboard/metrics"
+    calls = []
 
-        return httpx.Response(
-            200,
-            json={
-                "active_products": 12,
-                "active_warehouses": 3,
-                "total_movements": 50,
-                "low_stock_alerts": 2
-            }
-        )
+    def fake_request(method, endpoint, **kwargs):
+        calls.append({
+            "method": method,
+            "endpoint": endpoint,
+            **kwargs
+        })
 
-    transport = httpx.MockTransport(handler)
-    original_client = httpx.Client
+        return {
+            "total_products": 10,
+            "total_warehouses": 3,
+            "low_stock_products": 2
+        }
 
     monkeypatch.setattr(
-        dashboard_api.httpx,
-        "Client",
-        lambda **kwargs: original_client(
-            transport=transport,
-            **kwargs
-        )
+        dashboard_api,
+        "get_access_token",
+        lambda: "test-token"
+    )
+
+    monkeypatch.setattr(
+        dashboard_api,
+        "api_request",
+        fake_request
     )
 
     result = dashboard_api.get_dashboard_metrics_from_api()
 
-    assert result["active_products"] == 12
-    assert result["low_stock_alerts"] == 2
+    assert result["total_products"] == 10
+    assert calls[0]["method"] == "GET"
+    assert calls[0]["endpoint"] == "/api/dashboard/metrics"
+    assert calls[0]["token"] == "test-token"
 
+
+# ==========================================
+# DAILY ACTIVITY
+# ==========================================
 
 def test_dashboard_activity_http(monkeypatch):
-    def handler(request):
-        assert request.method == "GET"
-        assert request.url.path == "/api/dashboard/activity"
+    calls = []
 
-        return httpx.Response(
-            200,
-            json=[
-                {
-                    "movement_date": "2026-10-14",
-                    "entries": 5,
-                    "exits": 3
-                }
-            ]
-        )
+    def fake_request(method, endpoint, **kwargs):
+        calls.append({
+            "method": method,
+            "endpoint": endpoint,
+            **kwargs
+        })
 
-    transport = httpx.MockTransport(handler)
-    original_client = httpx.Client
+        return [
+            {
+                "date": "2026-10-15",
+                "total_movements": 5
+            }
+        ]
 
     monkeypatch.setattr(
-        dashboard_api.httpx,
-        "Client",
-        lambda **kwargs: original_client(
-            transport=transport,
-            **kwargs
-        )
+        dashboard_api,
+        "get_access_token",
+        lambda: "test-token"
+    )
+
+    monkeypatch.setattr(
+        dashboard_api,
+        "api_request",
+        fake_request
     )
 
     result = dashboard_api.get_daily_activity_from_api()
 
     assert len(result) == 1
-    assert result[0]["entries"] == 5
+    assert result[0]["total_movements"] == 5
+    assert calls[0]["method"] == "GET"
+    assert calls[0]["endpoint"] == "/api/dashboard/activity"
+    assert calls[0]["token"] == "test-token"
 
+
+# ==========================================
+# HTTP ERROR HANDLING
+# ==========================================
 
 def test_dashboard_http_error(monkeypatch):
-    transport = httpx.MockTransport(
-        lambda request: httpx.Response(
-            500,
-            json={"detail": "Server error"}
-        )
-    )
 
-    original_client = httpx.Client
+    def fake_request(method, endpoint, **kwargs):
+        raise APIClientError(
+            "Cannot connect to StockFlow API.",
+            status_code=503
+        )
 
     monkeypatch.setattr(
-        dashboard_api.httpx,
-        "Client",
-        lambda **kwargs: original_client(
-            transport=transport,
-            **kwargs
-        )
+        dashboard_api,
+        "get_access_token",
+        lambda: "test-token"
     )
 
-    with pytest.raises(
-        dashboard_api.DashboardAPIError,
-        match="HTTP 500"
-    ):
+    monkeypatch.setattr(
+        dashboard_api,
+        "api_request",
+        fake_request
+    )
+
+    with pytest.raises(APIClientError) as error:
         dashboard_api.get_dashboard_metrics_from_api()
+
+    assert error.value.status_code == 503
+    assert "Cannot connect" in str(error.value)

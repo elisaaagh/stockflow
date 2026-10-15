@@ -7,7 +7,8 @@ import pytest
 from dotenv import dotenv_values
 
 import database.movements as movements
-
+from api.main import app
+from api.dependencies.auth import get_current_user
 
 TEST_ENV = Path(__file__).resolve().parents[1] / ".env.test"
 
@@ -54,3 +55,33 @@ def test_db(monkeypatch):
             """)
 
     yield connect_test_db
+
+
+@pytest.fixture
+def login_as():
+    """Simulate an authenticated user for one test."""
+
+    previous = app.dependency_overrides.get(
+        get_current_user
+    )
+
+    def _login(role="admin"):
+        app.dependency_overrides[get_current_user] = (
+            lambda: {
+                "user_id": 1,
+                "username": "testuser",
+                "role": role,
+                "is_active": True
+            }
+        )
+
+    try:
+        yield _login
+    finally:
+        if previous is None:
+            app.dependency_overrides.pop(
+                get_current_user,
+                None
+            )
+        else:
+            app.dependency_overrides[get_current_user] = previous

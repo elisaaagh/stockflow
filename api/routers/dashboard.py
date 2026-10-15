@@ -8,7 +8,11 @@ from database.dashboard import (
     get_dashboard_metrics,
     get_daily_activity
 )
+from fastapi import Depends
 
+from api.dependencies.auth import (
+    require_viewer
+)
 
 router = APIRouter(
     prefix="/api/dashboard",
@@ -39,7 +43,8 @@ class DailyActivity(BaseModel):
 
 @router.get(
     "/metrics",
-    response_model=DashboardMetrics
+    response_model=DashboardMetrics,
+    dependencies=[Depends(require_viewer)]
 )
 def dashboard_metrics():
     """Return dashboard KPI metrics."""
@@ -52,7 +57,8 @@ def dashboard_metrics():
 
 @router.get(
     "/activity",
-    response_model=list[DailyActivity]
+    response_model=list[DailyActivity],
+    dependencies=[Depends(require_viewer)]
 )
 def dashboard_activity():
     """Return movement activity for the last 7 days."""

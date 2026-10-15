@@ -6,6 +6,7 @@ from api.routers.inventory import router as inventory_router
 from api.routers.movements import router as movements_router
 from api.routers.dashboard import router as dashboard_router
 from api.routers.reports import router as reports_router
+from api.routers.auth import router as auth_router
 
 # ==========================================
 # APPLICATION CONFIGURATION
@@ -52,3 +53,4 @@ app.include_router(inventory_router)
 app.include_router(movements_router)
 app.include_router(dashboard_router)
 app.include_router(reports_router)
+app.include_router(auth_router)

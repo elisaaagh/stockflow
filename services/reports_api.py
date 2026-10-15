@@ -1,22 +1,11 @@
 
-import os
 from datetime import date
 
-import httpx
-from dotenv import load_dotenv
-
-
-load_dotenv()
-
-API_BASE_URL = os.getenv(
-    "API_BASE_URL",
-    "http://127.0.0.1:8000"
-).rstrip("/")
-
-
-class ReportsAPIError(Exception):
-    """Error while communicating with Reports API."""
-    pass
+from services.api_client import (
+    api_request,
+    APIClientError as ReportsAPIError
+)
+from services.session import get_access_token
 
 
 def get_movement_report_from_api(
@@ -26,8 +15,6 @@ def get_movement_report_from_api(
     product_id=None,
     movement_type=None
 ):
-    """Retrieve filtered movements from FastAPI."""
-
     if start_date > end_date:
         raise ValueError(
             "Start date must be before end date."
@@ -47,36 +34,9 @@ def get_movement_report_from_api(
     if movement_type is not None:
         params["movement_type"] = movement_type
 
-    try:
-        with httpx.Client(timeout=20.0) as client:
-            response = client.get(
-                f"{API_BASE_URL}/api/reports/movements",
-                params=params
-            )
-
-            response.raise_for_status()
-            return response.json()
-
-    except httpx.HTTPStatusError as error:
-        status_code = error.response.status_code
-
-        try:
-            detail = error.response.json().get(
-                "detail",
-                "Unable to generate report."
-            )
-        except (ValueError, AttributeError):
-            detail = "Unable to generate report."
-
-        if isinstance(detail, (list, dict)):
-            detail = str(detail)
-
-        raise ReportsAPIError(
-            f"HTTP {status_code}: {detail}"
-        ) from error
-
-    except httpx.RequestError as error:
-        raise ReportsAPIError(
-            "Cannot connect to StockFlow API. "
-            "Verify that FastAPI is running."
-        ) from error
+    return api_request(
+        "GET",
+        "/api/reports/movements",
+        token=get_access_token(),
+        params=params
+    )

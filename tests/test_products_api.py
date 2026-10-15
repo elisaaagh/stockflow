@@ -6,7 +6,7 @@ from psycopg.errors import UniqueViolation
 
 from api.main import app
 import api.routers.products as products_router
-
+from tests.auth_helpers import authenticated_as
 
 client = TestClient(app)
 
@@ -29,14 +29,16 @@ def test_get_products(monkeypatch):
         lambda: [SAMPLE_PRODUCT]
     )
 
-    response = client.get("/api/products")
+    with authenticated_as("admin"):
+        response = client.get("/api/products")
 
     assert response.status_code == 200
     assert len(response.json()) == 1
     assert response.json()[0]["sku"] == "TEST001"
 
 
-def test_get_product_not_found(monkeypatch):
+def test_get_product_not_found(monkeypatch, login_as):
+    login_as("admin")
     monkeypatch.setattr(
         products_router,
         "get_product_by_id",
@@ -61,21 +63,23 @@ def test_create_product(monkeypatch):
         lambda product_id: SAMPLE_PRODUCT
     )
 
-    response = client.post(
-        "/api/products",
-        json={
-            "sku": "TEST001",
-            "name": "Test Product",
-            "unit": "Pieza",
-            "min_stock": 10
-        }
-    )
+    with authenticated_as("admin"):
+        response = client.post(
+            "/api/products",
+            json={
+                "sku": "TEST001",
+                "name": "Test Product",
+                "unit": "Pieza",
+                "min_stock": 10
+            }
+        )
 
     assert response.status_code == 201
     assert response.json()["sku"] == "TEST001"
 
 
-def test_invalid_stock():
+def test_invalid_stock(login_as):
+    login_as("admin")
     response = client.post(
         "/api/products",
         json={
@@ -88,7 +92,8 @@ def test_invalid_stock():
 
     assert response.status_code == 422
 
-def test_put_product(monkeypatch):
+def test_put_product(monkeypatch, login_as):
+    login_as("admin")
     calls = []
 
     monkeypatch.setattr(
@@ -122,7 +127,8 @@ def test_put_product(monkeypatch):
     assert calls[0]["min_stock"] == 20
 
 
-def test_patch_product(monkeypatch):
+def test_patch_product(monkeypatch, login_as):
+    login_as("admin")
     calls = []
 
     monkeypatch.setattr(
