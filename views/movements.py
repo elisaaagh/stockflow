@@ -28,6 +28,14 @@ from services.movements_api import (
 st.title("🔄 Stock Movements")
 st.caption("Register stock entries and exits.")
 
+# ==========================================
+# USER PERMISSIONS
+# ==========================================
+
+current_user = st.session_state.get("current_user", {})
+user_role = current_user.get("role")
+
+can_register_movements = user_role in ("admin", "operator")
 
 # ==========================================
 # LOAD PRODUCTS AND WAREHOUSES VIA HTTP
@@ -65,96 +73,100 @@ if "movement_message" in st.session_state:
 # NEW MOVEMENT FORM
 # ==========================================
 
-st.subheader("Register New Movement")
+if can_register_movements:
+    st.subheader("Register New Movement")
 
-if not products or not warehouses:
-    st.warning(
-        "Active products and warehouses are required."
-    )
+    if not products or not warehouses:
+        st.warning(
+            "Active products and warehouses are required."
+        )
 
+    else:
+        product_options = {
+            p["product_id"]: p
+            for p in products
+        }
+
+        warehouse_options = {
+            w["warehouse_id"]: w
+            for w in warehouses
+        }
+
+        with st.form("new_movement_form"):
+
+            movement_type = st.radio(
+                "Movement Type",
+                options=["IN", "OUT"],
+                format_func=lambda value: (
+                    "📥 Stock Entry"
+                    if value == "IN"
+                    else "📤 Stock Exit"
+                ),
+                horizontal=True
+            )
+
+            selected_product = st.selectbox(
+                "Product",
+                options=list(product_options.keys()),
+                format_func=lambda product_id: (
+                    f"{product_options[product_id]['sku']} - "
+                    f"{product_options[product_id]['name']}"
+                )
+            )
+
+            selected_warehouse = st.selectbox(
+                "Warehouse",
+                options=list(warehouse_options.keys()),
+                format_func=lambda warehouse_id: (
+                    warehouse_options[warehouse_id]["name"]
+                )
+            )
+
+            quantity = st.number_input(
+                "Quantity",
+                min_value=0.01,
+                value=1.0,
+                step=0.01,
+                format="%.2f"
+            )
+
+            notes = st.text_area(
+                "Notes",
+                max_chars=500,
+                placeholder="Reason for this movement"
+            )
+
+            submitted = st.form_submit_button(
+                "Register Movement",
+                type="primary"
+            )
+
+        if submitted:
+
+            try:
+                result = register_movement_from_api(
+                    product_id=selected_product,
+                    warehouse_id=selected_warehouse,
+                    movement_type=movement_type,
+                    quantity=Decimal(str(quantity)),
+                    notes=notes.strip()
+                )
+
+                movement_id = result["movement_id"]
+
+                st.session_state["movement_message"] = (
+                    f"Movement #{movement_id} "
+                    f"registered successfully!"
+                )
+
+                st.rerun()
+
+            except MovementAPIError as error:
+                st.warning(str(error))
 else:
-    product_options = {
-        p["product_id"]: p
-        for p in products
-    }
-
-    warehouse_options = {
-        w["warehouse_id"]: w
-        for w in warehouses
-    }
-
-    with st.form("new_movement_form"):
-
-        movement_type = st.radio(
-            "Movement Type",
-            options=["IN", "OUT"],
-            format_func=lambda value: (
-                "📥 Stock Entry"
-                if value == "IN"
-                else "📤 Stock Exit"
-            ),
-            horizontal=True
-        )
-
-        selected_product = st.selectbox(
-            "Product",
-            options=list(product_options.keys()),
-            format_func=lambda product_id: (
-                f"{product_options[product_id]['sku']} - "
-                f"{product_options[product_id]['name']}"
-            )
-        )
-
-        selected_warehouse = st.selectbox(
-            "Warehouse",
-            options=list(warehouse_options.keys()),
-            format_func=lambda warehouse_id: (
-                warehouse_options[warehouse_id]["name"]
-            )
-        )
-
-        quantity = st.number_input(
-            "Quantity",
-            min_value=0.01,
-            value=1.0,
-            step=0.01,
-            format="%.2f"
-        )
-
-        notes = st.text_area(
-            "Notes",
-            max_chars=500,
-            placeholder="Reason for this movement"
-        )
-
-        submitted = st.form_submit_button(
-            "Register Movement",
-            type="primary"
-        )
-
-    if submitted:
-
-        try:
-            result = register_movement_from_api(
-                product_id=selected_product,
-                warehouse_id=selected_warehouse,
-                movement_type=movement_type,
-                quantity=Decimal(str(quantity)),
-                notes=notes.strip()
-            )
-
-            movement_id = result["movement_id"]
-
-            st.session_state["movement_message"] = (
-                f"Movement #{movement_id} "
-                f"registered successfully!"
-            )
-
-            st.rerun()
-
-        except MovementAPIError as error:
-            st.warning(str(error))
-
+    st.info(
+        "You have read-only access to movement history."
+    )
 
 # ==========================================
 # MOVEMENT HISTORY

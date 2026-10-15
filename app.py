@@ -124,9 +124,13 @@ if not st.session_state.get("access_token"):
     st.stop()
 
 
+
 # ==========================================
 # NAVIGATION
 # ==========================================
+
+current_user = st.session_state["current_user"]
+user_role = current_user["role"]
 
 pages = {
     "General": [
@@ -163,7 +167,18 @@ pages = {
     ]
 }
 
+# Only administrators can access user management.
+if user_role == "admin":
+    pages["Administration"] = [
+        st.Page(
+            "views/users.py",
+            title="Users Management",
+            icon="👥"
+        )
+    ]
+
 navigation = st.navigation(pages)
+
 
 
 # ==========================================

@@ -79,3 +79,27 @@ def create_user(username, password_hash, role="viewer"):
             )
 
             return cursor.fetchone()[0]
+
+# ==========================================
+# GET ALL USERS
+# ==========================================
+
+def get_all_users():
+    """Retrieve users without exposing password hashes."""
+
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    user_id,
+                    username,
+                    role,
+                    is_active,
+                    created_at
+                FROM users
+                ORDER BY user_id;
+                """
+            )
+
+            return cursor.fetchall()

@@ -139,3 +139,66 @@ class MovementResponse(BaseModel):
     quantity: Decimal
     unit: str
     notes: str | None = None
+
+# ==========================================
+# USER SCHEMAS
+# ==========================================
+
+from datetime import datetime
+from typing import Literal
+
+from pydantic import BaseModel, Field, field_validator
+
+
+class UserCreate(BaseModel):
+    username: str = Field(
+        min_length=3,
+        max_length=50
+    )
+    password: str = Field(
+        min_length=12,
+        max_length=128
+    )
+    role: Literal[
+        "admin",
+        "operator",
+        "viewer"
+    ] = "viewer"
+
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, value: str):
+        username = value.strip().lower()
+
+        if not username:
+            raise ValueError("Username is required.")
+
+        if not all(
+            char.isascii() and (
+                char.islower() or
+                char.isdigit() or
+                char == "_"
+            )
+            for char in username
+        ):
+            raise ValueError(
+                "Username may contain only lowercase "
+                "letters, numbers and underscores."
+            )
+
+        return username
+
+
+class UserResponse(BaseModel):
+    user_id: int
+    username: str
+    role: Literal["admin", "operator", "viewer"]
+    is_active: bool
+    created_at: datetime
+
+
+class UserCreatedResponse(BaseModel):
+    user_id: int
+    username: str
+    role: Literal["admin", "operator", "viewer"]
+    is_active: bool
